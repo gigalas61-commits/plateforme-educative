@@ -1212,7 +1212,8 @@ let _qd={};let _qtotal=0;let _qcount=0;
 function buildMindMap(c){
   var raw=c.carteMentale;
   if(!raw)return '<h2>'+c.title+' \u2014 Carte Mentale</h2><p>En cours de pr\u00e9paration.</p>';
-  raw=raw.replace(/(font-family:\s*serif[^>]*>)([\s\S]*?)(<\/div>)/g, function(m,open,content,close){
+  // Wrap LaTeX in serif-font elements with \( \) \u2014 handle both </div> and </li>
+  raw=raw.replace(/(font-family:\s*serif[^>]*>)([\s\S]*?)(<\/(?:div|li)>)/g, function(m,open,content,close){
     var fixed=content.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     return open+'\\('+fixed+'\\)'+close;
   });
@@ -1220,7 +1221,8 @@ function buildMindMap(c){
   tmp.innerHTML=raw;
   var titleEl=tmp.querySelector('h2');
   var title=titleEl?titleEl.textContent:c.title;
-  var flexDiv=tmp.querySelector('div[style*="display:flex"]');
+  // Support both display:flex (6\u00e8me-1\u00e8re) and display:grid (Terminale/CRPE)
+  var flexDiv=tmp.querySelector('div[style*="display:flex"]')||tmp.querySelector('div[style*="display:grid"]');
   if(!flexDiv){return raw;}
   var cards=flexDiv.children;
   var out='<div class="mind-map-wrapper">';
@@ -1233,17 +1235,37 @@ function buildMindMap(c){
     var sty=card.getAttribute('style')||'';
     var bm=sty.match(/border:\s*\d+px\s+solid\s+(#[0-9a-fA-F]{3,8})/);
     if(bm)color=bm[1];
-    var h4=card.querySelector('h4');
-    var cardTitle=h4?h4.textContent:'';
+    // Support both h4 (other levels) and h3 (Terminale)
+    var hEl=card.querySelector('h4')||card.querySelector('h3');
+    var cardTitle=hEl?hEl.textContent:'';
+    // Support div, ul, or direct p content
     var contentDiv=card.querySelector('div[style*="line-height"]');
+    if(!contentDiv){contentDiv=card.querySelector('ul');}
     if(!contentDiv){var ds=card.querySelectorAll(':scope > div');if(ds.length>0)contentDiv=ds[ds.length-1];}
+    // French cartes mentales: content is <p> elements directly in card (no wrapper)
+    var useDirectP=false;
+    if(!contentDiv){var ps=card.querySelectorAll(':scope > p');if(ps.length>0){useDirectP=true;}}
     out+='<div class="mind-map-branch" style="--branch-color:'+color+'">';
     out+='<div class="mind-map-card" style="background:'+hRgba(color,0.06)+';border:1px solid '+hRgba(color,0.3)+'">';
     out+='<h4 style="color:'+color+'">'+escMM(cardTitle)+'</h4>';
     out+='<div class="mm-content">';
-    if(contentDiv){
-      for(var j=0;j<contentDiv.children.length;j++){
-        var el=contentDiv.children[j];
+    if(useDirectP){
+      var ps=card.querySelectorAll(':scope > p');
+      for(var j=0;j<ps.length;j++){
+        var el=ps[j];
+        var est=el.getAttribute('style')||'';
+        if(est.indexOf('font-style:italic')!==-1||est.indexOf('font-style: italic')!==-1){
+          out+='<div class="mm-example" style="background:'+hRgba(color,0.08)+'"><em>'+el.innerHTML+'</em></div>';
+        }else if(el.querySelector&&el.querySelector('strong')){
+          out+='<div class="mm-example" style="background:'+hRgba(color,0.08)+'">'+el.innerHTML+'</div>';
+        }else{
+          out+='<div class="mm-bullet">'+el.innerHTML+'</div>';
+        }
+      }
+    }else if(contentDiv){
+      var items=contentDiv.children;
+      for(var j=0;j<items.length;j++){
+        var el=items[j];
         var est=el.getAttribute('style')||'';
         if(est.indexOf('font-family:serif')!==-1||est.indexOf('font-family: serif')!==-1){
           out+='<div class="mm-formula">'+el.innerHTML+'</div>';
@@ -1253,6 +1275,14 @@ function buildMindMap(c){
           out+='<div class="mm-warning">'+el.innerHTML+'</div>';
         }else if(est.indexOf('font-weight:600')!==-1||est.indexOf('font-weight: 600')!==-1){
           out+='<div class="mm-subtitle" style="color:'+color+'">'+escMM(el.textContent)+'</div>';
+        }else if(el.querySelector&&el.querySelector('strong')){
+          out+='<div class="mm-example" style="background:'+hRgba(color,0.08)+'">'+el.innerHTML+'</div>';
+        }else if(el.querySelector&&el.querySelector('em')){
+          out+='<div class="mm-warning">'+el.innerHTML+'</div>';
+        }else if(est.indexOf('color:#ccc')!==-1||est.indexOf('color: #ccc')!==-1){
+          out+='<div class="mm-bullet">'+el.innerHTML+'</div>';
+        }else if(est.indexOf('color:#4ecdc4')!==-1||est.indexOf('color:#ffeaa7')!==-1){
+          out+='<div class="mm-example" style="background:'+hRgba(color,0.08)+'">'+el.innerHTML+'</div>';
         }else{
           out+='<div class="mm-bullet">'+el.innerHTML+'</div>';
         }
