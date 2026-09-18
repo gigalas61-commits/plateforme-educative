@@ -1212,10 +1212,9 @@ let _qd={};let _qtotal=0;let _qcount=0;
 function buildMindMap(c){
   var raw=c.carteMentale;
   if(!raw)return '<h2>'+c.title+' \u2014 Carte Mentale</h2><p>En cours de pr\u00e9paration.</p>';
-  // Wrap LaTeX in serif-font elements with \( \) \u2014 handle both </div> and </li>
-  raw=raw.replace(/(font-family:\s*serif[^>]*>)([\s\S]*?)(<\/(?:div|li)>)/g, function(m,open,content,close){
-    var fixed=content.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    return open+'\\('+fixed+'\\)'+close;
+  // Wrap LaTeX in serif-font LEAF elements with \( \) \u2014 only match content without nested HTML tags
+  raw=raw.replace(/(font-family:\s*serif[^>]*>)([^<]+)(<\/(?:div|li|span|p)>)/g, function(m,open,content,close){
+    return open+'\\('+content.trim()+'\\)'+close;
   });
   var tmp=document.createElement('div');
   tmp.innerHTML=raw;
